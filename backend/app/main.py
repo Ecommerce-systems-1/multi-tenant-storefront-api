@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -25,10 +25,12 @@ def create_app(db: sqlite3.Connection | None = None) -> FastAPI:
     app.include_router(admin.router)
 
     @app.get("/health")
-    def health(request):  # type: ignore
-        db = request.app.state.db
-        tenant_count = db.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
-        total_products = db.execute("SELECT COUNT(*) FROM products WHERE deleted=0").fetchone()[0]
+    def health(request: Request):
+        db_conn = getattr(request.app.state, "db", None)
+        if db_conn is None:
+            return {"status": "ok", "tenant_count": 0, "total_products": 0}
+        tenant_count = db_conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
+        total_products = db_conn.execute("SELECT COUNT(*) FROM products WHERE deleted=0").fetchone()[0]
         return {"status": "ok", "tenant_count": tenant_count, "total_products": total_products}
 
     static_dir = pathlib.Path("/app/frontend/out")
